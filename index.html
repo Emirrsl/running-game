@@ -83,7 +83,7 @@
             </div>
         </div>
 
-        <!-- Interactive Control Hints Panel (for touch/visual feedback) -->
+        <!-- Interactive Control Hints Panel -->
         <div class="w-full bg-slate-800/60 p-4 border-t border-slate-800 flex items-center justify-center space-x-6">
             <div id="leftKeyHint" class="key-hint bg-slate-900 border-2 border-slate-700 px-6 py-3 rounded-2xl font-bold text-slate-300 flex items-center space-x-2 shadow-md">
                 <span class="text-xl">⬅️</span>
@@ -112,37 +112,35 @@
         const leftKeyHint = document.getElementById('leftKeyHint');
         const rightKeyHint = document.getElementById('rightKeyHint');
 
-        // Game Configuration
-        const TRACK_LENGTH = 1000; // Total track length in meters
-        let gameState = 'START'; // START, PLAYING, GAMEOVER
+        // Game Configuration (Pist boyutu 200 metreye düşürüldü)
+        const TRACK_LENGTH = 200; 
+        let gameState = 'START'; 
         let startTime = 0;
         let elapsedTime = 0;
 
-        // Player object
+        // Player object (Hızı artırıldı, sürtünme azaltıldı)
         let player = {
-            x: 100, // world x position in meters
-            y: 0.35, // relative track lane position (0 to 1)
-            speed: 0, // meters per second
-            maxSpeed: 12,
-            stamina: 100,
-            lastInput: null, // 'left' or 'right'
+            x: 0,
+            y: 0.35,
+            speed: 0,
+            maxSpeed: 16,
+            lastInput: null,
             color: '#3b82f6',
             name: 'Sen',
             avatar: '🏃‍♂️'
         };
 
-        // AI Opponent object
+        // AI Opponent object (Hızı dengelendi)
         let ai = {
             x: 0,
             y: 0.65,
             speed: 0,
-            targetSpeed: 8.5,
+            targetSpeed: 7.5,
             color: '#ef4444',
             name: 'Rakip Bot',
             avatar: '🤖'
         };
 
-        // Handle high DPI displays for sharp rendering
         function resizeCanvas() {
             const rect = canvas.getBoundingClientRect();
             canvas.width = rect.width * window.devicePixelRatio;
@@ -152,7 +150,6 @@
         window.addEventListener('resize', resizeCanvas);
         resizeCanvas();
 
-        // Reset game variables for a new round
         function initGame() {
             player.x = 0;
             player.speed = 0;
@@ -160,15 +157,13 @@
 
             ai.x = 0;
             ai.speed = 0;
-            // Add some randomness to AI speed each game
-            ai.targetSpeed = 8.0 + Math.random() * 1.5;
+            ai.targetSpeed = 7.0 + Math.random() * 1.0;
 
             startTime = performance.now();
             gameState = 'PLAYING';
             gameOverlay.classList.add('opacity-0', 'pointer-events-none');
         }
 
-        // Action button listener
         actionBtn.addEventListener('click', () => {
             initGame();
         });
@@ -185,18 +180,16 @@
             }
         });
 
-        // Support mobile tap/touch alternative controls if desired, or alternate tapping buttons
         function handleStep(direction) {
             if (player.lastInput !== direction) {
                 player.lastInput = direction;
-                // Boost speed with each correct alternate step
-                player.speed += 2.2;
+                // Her doğru adımda kazanılan hız artırıldı
+                player.speed += 3.5;
                 if (player.speed > player.maxSpeed) {
                     player.speed = player.maxSpeed;
                 }
             } else {
-                // Penalty for pressing the same key twice consecutively
-                player.speed = Math.max(1, player.speed - 1.0);
+                player.speed = Math.max(1, player.speed - 0.8);
             }
         }
 
@@ -222,24 +215,20 @@
         }
 
         function update(dt) {
-            // Elapsed Time calculation
             elapsedTime = (performance.now() - startTime) / 1000;
 
-            // Player natural friction/slowdown if not tapping
-            player.speed = Math.max(0, player.speed - 3.5 * dt);
+            // Sürtünme azaltıldı (1.5 yapıldı) böylece hızın hemen düşmez
+            player.speed = Math.max(0, player.speed - 1.5 * dt);
             player.x += player.speed * dt;
 
-            // AI movement calculation with subtle random variance
-            const aiRandomness = Math.sin(performance.now() * 0.003) * 0.5;
+            const aiRandomness = Math.sin(performance.now() * 0.003) * 0.3;
             ai.speed = ai.targetSpeed + aiRandomness;
             ai.x += ai.speed * dt;
 
-            // Update DOM displays
             distanceDisplay.innerText = Math.floor(player.x) + ' m';
             speedDisplay.innerText = (player.speed * 3.6).toFixed(1) + ' km/s';
             timeDisplay.innerText = elapsedTime.toFixed(2) + ' sn';
 
-            // Check Finish Line conditions
             if (player.x >= TRACK_LENGTH || ai.x >= TRACK_LENGTH) {
                 gameState = 'GAMEOVER';
                 showGameOverModal();
@@ -252,11 +241,11 @@
 
             if (playerWon) {
                 overlayTitle.innerText = "Tebrikler, Kazandın! 🎉";
-                overlayDesc.innerHTML = `Mükemmel bir yarış çıkardın! Finiş çizgisine <span class="text-amber-400 font-bold">${elapsedTime.toFixed(2)} saniyede</span> ulaştın.`;
+                overlayDesc.innerHTML = `Harika koştun! Finiş çizgisine <span class="text-amber-400 font-bold">${elapsedTime.toFixed(2)} saniyede</span> ulaştın.`;
                 actionBtn.innerText = "TEKRAR YARIŞ";
             } else {
                 overlayTitle.innerText = "Rakip Kazandı! 🤖";
-                overlayDesc.innerHTML = `Yapay zeka bu kez senden hızlıydı. Daha hızlı tempoyla tekrar denemek ister misin?`;
+                overlayDesc.innerHTML = `Bu kez rakip önde bitirdi. Tekrar denemek ister misin?`;
                 actionBtn.innerText = "YENİDEN DENE";
             }
         }
@@ -267,15 +256,12 @@
 
             ctx.clearRect(0, 0, width, height);
 
-            // Draw Background Track
             ctx.fillStyle = '#1e293b';
             ctx.fillRect(0, 0, width, height);
 
-            // Camera follow calculation (Focus on player or midpoint)
-            const cameraX = Math.max(0, player.x - 15); // viewport spans 30 meters
+            const cameraX = Math.max(0, player.x - 15);
             const metersToPixels = width / 35; 
 
-            // Draw lanes & running track lines
             ctx.strokeStyle = '#334155';
             ctx.lineWidth = 2;
             ctx.beginPath();
@@ -283,7 +269,6 @@
             ctx.lineTo(width, height * 0.5);
             ctx.stroke();
 
-            // Draw Finish Line pattern
             const finishPixelX = (TRACK_LENGTH - cameraX) * metersToPixels;
             if (finishPixelX >= -50 && finishPixelX <= width + 50) {
                 ctx.fillStyle = '#ffffff';
@@ -292,14 +277,12 @@
                 for (let y = 20; y < height - 20; y += 15) {
                     ctx.fillRect(finishPixelX + 5, y, 5, 15);
                 }
-                // Finish Text
                 ctx.fillStyle = '#f8fafc';
                 ctx.font = 'bold 12px Poppins';
                 ctx.fillText('FİNİŞ', finishPixelX - 10, 15);
             }
 
-            // Draw Distance Markers on Track
-            for (let m = 0; m <= TRACK_LENGTH; m += 100) {
+            for (let m = 0; m <= TRACK_LENGTH; m += 50) {
                 const markerX = (m - cameraX) * metersToPixels;
                 if (markerX >= 0 && markerX <= width) {
                     ctx.fillStyle = '#64748b';
@@ -313,28 +296,23 @@
                 }
             }
 
-            // Draw AI Runner
             const aiScreenX = (ai.x - cameraX) * metersToPixels;
             const aiScreenY = height * ai.y;
             drawRunner(aiScreenX, aiScreenY, ai.color, ai.name, ai.avatar);
 
-            // Draw Player Runner
             const playerScreenX = (player.x - cameraX) * metersToPixels;
             const playerScreenY = height * player.y;
             drawRunner(playerScreenX, playerScreenY, player.color, player.name, player.avatar);
         }
 
         function drawRunner(x, y, color, name, avatar) {
-            // Only draw if within reasonable bounds
             if (x < -60 || x > canvas.clientWidth + 60) return;
 
-            // Runner Shadow
             ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
             ctx.beginPath();
             ctx.ellipse(x, y + 14, 12, 6, 0, 0, Math.PI * 2);
             ctx.fill();
 
-            // Runner Body Circle
             ctx.fillStyle = color;
             ctx.beginPath();
             ctx.arc(x, y, 16, 0, Math.PI * 2);
@@ -343,20 +321,17 @@
             ctx.lineWidth = 2;
             ctx.stroke();
 
-            // Avatar / Icon inside circle
             ctx.font = '14px sans-serif';
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
             ctx.fillText(avatar, x, y);
 
-            // Name Tag & Status above runner
             ctx.fillStyle = '#f8fafc';
             ctx.font = 'bold 11px Poppins';
             ctx.textAlign = 'center';
             ctx.fillText(name, x, y - 24);
         }
 
-        // Start initial render loop
         requestAnimationFrame(gameLoop);
     </script>
 </body>
