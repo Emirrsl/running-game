@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sprint Master - Üstten Görünüm Pist Koşusu</title>
+    <!-- Tailwind CSS for modern UI -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap');
+        body {
+            font-family: 'Poppins', sans-serif;
+            background: #0f172a;
+            color: #f8fafc;
+            overflow-x: hidden;
+        }
+        .running-track {
+            background: repeating-linear-gradient(
+                90deg,
+                #1e293b,
+                #1e293b 40px,
+                #334155 40px,
+                #334155 44px
+            );
+        }
+        .key-hint {
+            transition: all 0.1s ease;
+        }
+        .key-active {
+            transform: scale(0.95);
+            background-color: #3b82f6 !important;
+            border-color: #60a5fa !important;
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.5);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col items-center justify-between p-4 md:p-6">
+
+    <header class="w-full max-w-4xl flex flex-col md:flex-row items-center justify-between bg-slate-800/80 backdrop-blur-md p-4 rounded-2xl border border-slate-700 shadow-xl mb-4">
+        <div class="flex items-center space-x-3 mb-3 md:mb-0">
+            <div class="bg-blue-600 p-2.5 rounded-xl text-2xl shadow-lg shadow-blue-500/30">🏃‍♂️</div>
+            <div>
+                <h1 class="text-xl font-extrabold tracking-wide text-white">SPRINT MASTER</h1>
+                <p class="text-xs text-slate-400">Üstten Görünüm Pist Koşusu</p>
+            </div>
+        </div>
+        
+        <!-- Scoreboard / Stats -->
+        <div class="grid grid-cols-3 gap-3 w-full md:w-auto text-center">
+            <div class="bg-slate-900/60 px-4 py-2 rounded-xl border border-slate-700/50">
+                <span class="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Mesafe</span>
+                <span id="distanceDisplay" class="text-lg font-bold text-blue-400">0 m</span>
+            </div>
+            <div class="bg-slate-900/60 px-4 py-2 rounded-xl border border-slate-700/50">
+                <span class="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Anlık Hız</span>
+                <span id="speedDisplay" class="text-lg font-bold text-emerald-400">0.0 km/s</span>
+            </div>
+            <div class="bg-slate-900/60 px-4 py-2 rounded-xl border border-slate-700/50">
+                <span class="block text-[10px] uppercase tracking-wider text-slate-400 font-semibold">Süre</span>
+                <span id="timeDisplay" class="text-lg font-bold text-amber-400">0.00 sn</span>
+            </div>
+        </div>
+    </header>
+
+    <main class="relative w-full max-w-4xl bg-slate-900 rounded-3xl border border-slate-800 shadow-2xl overflow-hidden flex flex-col items-center">
+        
+        <!-- Canvas Container -->
+        <div class="relative w-full aspect-[16/9] md:aspect-[21/9]">
+            <canvas id="gameCanvas" class="w-full h-full block"></canvas>
+            
+            <!-- Overlay screens (Start / GameOver / Victory) -->
+            <div id="gameOverlay" class="absolute inset-0 bg-slate-950/80 backdrop-blur-sm flex flex-col items-center justify-center p-6 text-center z-10 transition-all duration-300">
+                <div id="overlayContent" class="max-w-md bg-slate-900 border border-slate-700 p-8 rounded-3xl shadow-2xl">
+                    <div class="text-5xl mb-4">🏆</div>
+                    <h2 id="overlayTitle" class="text-2xl md:text-3xl font-extrabold text-white mb-2">Yarışa Hazır Mısın?</h2>
+                    <p id="overlayDesc" class="text-sm text-slate-300 mb-6 leading-relaxed">
+                        Karakterini koşturmak için klavyedeki <span class="text-blue-400 font-bold">SOL (←)</span> ve <span class="text-blue-400 font-bold">SAĞ (→)</span> tuşlarına (veya A / D tuşlarına) dönüşümlü ve hızlı bir şekilde bas! Finiş çizgisine rakibinden önce ulaş.
+                    </p>
+                    <button id="actionBtn" class="w-full py-4 bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white font-bold rounded-2xl shadow-lg shadow-blue-600/30 transition-all transform hover:-translate-y-0.5 active:translate-y-0 text-base">
+                        YARIŞI BAŞLAT
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Interactive Control Hints Panel (for touch/visual feedback) -->
+        <div class="w-full bg-slate-800/60 p-4 border-t border-slate-800 flex items-center justify-center space-x-6">
+            <div id="leftKeyHint" class="key-hint bg-slate-900 border-2 border-slate-700 px-6 py-3 rounded-2xl font-bold text-slate-300 flex items-center space-x-2 shadow-md">
+                <span class="text-xl">⬅️</span>
+                <span>SOL (A)</span>
+            </div>
+            <div class="text-slate-500 font-semibold text-sm">DÖNÜŞÜMLÜ BAS</div>
+            <div id="rightKeyHint" class="key-hint bg-slate-900 border-2 border-slate-700 px-6 py-3 rounded-2xl font-bold text-slate-300 flex items-center space-x-2 shadow-md">
+                <span>SAĞ (D)</span>
+                <span class="text-xl">➡️</span>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // DOM Elements
+        const distanceDisplay = document.getElementById('distanceDisplay');
+        const speedDisplay = document.getElementById('speedDisplay');
+        const timeDisplay = document.getElementById('timeDisplay');
+        const gameOverlay = document.getElementById('gameOverlay');
+        const overlayTitle = document.getElementById('overlayTitle');
+        const overlayDesc = document.getElementById('overlayDesc');
+        const actionBtn = document.getElementById('actionBtn');
+        const leftKeyHint = document.getElementById('leftKeyHint');
+        const rightKeyHint = document.getElementById('rightKeyHint');
+
+        // Game Configuration
+        const TRACK_LENGTH = 1000; // Total track length in meters
+        let gameState = 'START'; // START, PLAYING, GAMEOVER
+        let startTime = 0;
+        let elapsedTime = 0;
+
+        // Player object
+        let player = {
+            x: 100, // world x position in meters
+            y: 0.35, // relative track lane position (0 to 1)
+            speed: 0, // meters per second
+            maxSpeed: 12,
+            stamina: 100,
+            lastInput: null, // 'left' or 'right'
+            color: '#3b82f6',
+            name: 'Sen',
+            avatar: '🏃‍♂️'
+        };
+
+        // AI Opponent object
+        let ai = {
+            x: 0,
+            y: 0.65,
+            speed: 0,
+            targetSpeed: 8.5,
+            color: '#ef4444',
+            name: 'Rakip Bot',
+            avatar: '🤖'
+        };
+
+        // Handle high DPI displays for sharp rendering
+        function resizeCanvas() {
+            const rect = canvas.getBoundingClientRect();
+            canvas.width = rect.width * window.devicePixelRatio;
+            canvas.height = rect.height * window.devicePixelRatio;
+            ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+        }
+        window.addEventListener('resize', resizeCanvas);
+        resizeCanvas();
+
+        // Reset game variables for a new round
+        function initGame() {
+            player.x = 0;
+            player.speed = 0;
+            player.lastInput = null;
+
+            ai.x = 0;
+            ai.speed = 0;
+            // Add some randomness to AI speed each game
+            ai.targetSpeed = 8.0 + Math.random() * 1.5;
+
+            startTime = performance.now();
+            gameState = 'PLAYING';
+            gameOverlay.classList.add('opacity-0', 'pointer-events-none');
+        }
+
+        // Action button listener
+        actionBtn.addEventListener('click', () => {
+            initGame();
+        });
+
+        window.addEventListener('keydown', (e) => {
+            if (gameState !== 'PLAYING') return;
+
+            if (e.key === 'ArrowLeft' || e.key === 'a' || e.key === 'A') {
+                handleStep('left');
+                triggerKeyVisual(leftKeyHint);
+            } else if (e.key === 'ArrowRight' || e.key === 'd' || e.key === 'D') {
+                handleStep('right');
+                triggerKeyVisual(rightKeyHint);
+            }
+        });
+
+        // Support mobile tap/touch alternative controls if desired, or alternate tapping buttons
+        function handleStep(direction) {
+            if (player.lastInput !== direction) {
+                player.lastInput = direction;
+                // Boost speed with each correct alternate step
+                player.speed += 2.2;
+                if (player.speed > player.maxSpeed) {
+                    player.speed = player.maxSpeed;
+                }
+            } else {
+                // Penalty for pressing the same key twice consecutively
+                player.speed = Math.max(1, player.speed - 1.0);
+            }
+        }
+
+        function triggerKeyVisual(element) {
+            element.classList.add('key-active');
+            setTimeout(() => {
+                element.classList.remove('key-active');
+            }, 100);
+        }
+
+        let lastFrameTime = performance.now();
+
+        function gameLoop(currentTime) {
+            const deltaTime = (currentTime - lastFrameTime) / 1000;
+            lastFrameTime = currentTime;
+
+            if (gameState === 'PLAYING') {
+                update(deltaTime);
+            }
+
+            render();
+            requestAnimationFrame(gameLoop);
+        }
+
+        function update(dt) {
+            // Elapsed Time calculation
+            elapsedTime = (performance.now() - startTime) / 1000;
+
+            // Player natural friction/slowdown if not tapping
+            player.speed = Math.max(0, player.speed - 3.5 * dt);
+            player.x += player.speed * dt;
+
+            // AI movement calculation with subtle random variance
+            const aiRandomness = Math.sin(performance.now() * 0.003) * 0.5;
+            ai.speed = ai.targetSpeed + aiRandomness;
+            ai.x += ai.speed * dt;
+
+            // Update DOM displays
+            distanceDisplay.innerText = Math.floor(player.x) + ' m';
+            speedDisplay.innerText = (player.speed * 3.6).toFixed(1) + ' km/s';
+            timeDisplay.innerText = elapsedTime.toFixed(2) + ' sn';
+
+            // Check Finish Line conditions
+            if (player.x >= TRACK_LENGTH || ai.x >= TRACK_LENGTH) {
+                gameState = 'GAMEOVER';
+                showGameOverModal();
+            }
+        }
+
+        function showGameOverModal() {
+            gameOverlay.classList.remove('opacity-0', 'pointer-events-none');
+            const playerWon = player.x >= ai.x;
+
+            if (playerWon) {
+                overlayTitle.innerText = "Tebrikler, Kazandın! 🎉";
+                overlayDesc.innerHTML = `Mükemmel bir yarış çıkardın! Finiş çizgisine <span class="text-amber-400 font-bold">${elapsedTime.toFixed(2)} saniyede</span> ulaştın.`;
+                actionBtn.innerText = "TEKRAR YARIŞ";
+            } else {
+                overlayTitle.innerText = "Rakip Kazandı! 🤖";
+                overlayDesc.innerHTML = `Yapay zeka bu kez senden hızlıydı. Daha hızlı tempoyla tekrar denemek ister misin?`;
+                actionBtn.innerText = "YENİDEN DENE";
+            }
+        }
+
+        function render() {
+            const width = canvas.clientWidth;
+            const height = canvas.clientHeight;
+
+            ctx.clearRect(0, 0, width, height);
+
+            // Draw Background Track
+            ctx.fillStyle = '#1e293b';
+            ctx.fillRect(0, 0, width, height);
+
+            // Camera follow calculation (Focus on player or midpoint)
+            const cameraX = Math.max(0, player.x - 15); // viewport spans 30 meters
+            const metersToPixels = width / 35; 
+
+            // Draw lanes & running track lines
+            ctx.strokeStyle = '#334155';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(0, height * 0.5);
+            ctx.lineTo(width, height * 0.5);
+            ctx.stroke();
+
+            // Draw Finish Line pattern
+            const finishPixelX = (TRACK_LENGTH - cameraX) * metersToPixels;
+            if (finishPixelX >= -50 && finishPixelX <= width + 50) {
+                ctx.fillStyle = '#ffffff';
+                ctx.fillRect(finishPixelX, 20, 10, height - 40);
+                ctx.fillStyle = '#0f172a';
+                for (let y = 20; y < height - 20; y += 15) {
+                    ctx.fillRect(finishPixelX + 5, y, 5, 15);
+                }
+                // Finish Text
+                ctx.fillStyle = '#f8fafc';
+                ctx.font = 'bold 12px Poppins';
+                ctx.fillText('FİNİŞ', finishPixelX - 10, 15);
+            }
+
+            // Draw Distance Markers on Track
+            for (let m = 0; m <= TRACK_LENGTH; m += 100) {
+                const markerX = (m - cameraX) * metersToPixels;
+                if (markerX >= 0 && markerX <= width) {
+                    ctx.fillStyle = '#64748b';
+                    ctx.font = '10px Poppins';
+                    ctx.fillText(m + 'm', markerX, height - 10);
+                    ctx.strokeStyle = '#475569';
+                    ctx.beginPath();
+                    ctx.moveTo(markerX, height - 25);
+                    ctx.lineTo(markerX, height - 20);
+                    ctx.stroke();
+                }
+            }
+
+            // Draw AI Runner
+            const aiScreenX = (ai.x - cameraX) * metersToPixels;
+            const aiScreenY = height * ai.y;
+            drawRunner(aiScreenX, aiScreenY, ai.color, ai.name, ai.avatar);
+
+            // Draw Player Runner
+            const playerScreenX = (player.x - cameraX) * metersToPixels;
+            const playerScreenY = height * player.y;
+            drawRunner(playerScreenX, playerScreenY, player.color, player.name, player.avatar);
+        }
+
+        function drawRunner(x, y, color, name, avatar) {
+            // Only draw if within reasonable bounds
+            if (x < -60 || x > canvas.clientWidth + 60) return;
+
+            // Runner Shadow
+            ctx.fillStyle = 'rgba(0, 0, 0, 0.4)';
+            ctx.beginPath();
+            ctx.ellipse(x, y + 14, 12, 6, 0, 0, Math.PI * 2);
+            ctx.fill();
+
+            // Runner Body Circle
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(x, y, 16, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+
+            // Avatar / Icon inside circle
+            ctx.font = '14px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(avatar, x, y);
+
+            // Name Tag & Status above runner
+            ctx.fillStyle = '#f8fafc';
+            ctx.font = 'bold 11px Poppins';
+            ctx.textAlign = 'center';
+            ctx.fillText(name, x, y - 24);
+        }
+
+        // Start initial render loop
+        requestAnimationFrame(gameLoop);
+    </script>
+</body>
+</html>
